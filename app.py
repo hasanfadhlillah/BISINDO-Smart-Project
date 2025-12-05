@@ -33,8 +33,8 @@ with col_control:
     
     # Gunakan Session State untuk menyimpan nilai slider
     if 'h_min' not in st.session_state: st.session_state['h_min'] = 0
-    if 's_min' not in st.session_state: st.session_state['s_min'] = 20 # Diturunkan biar lebih sensitif
-    if 'v_min' not in st.session_state: st.session_state['v_min'] = 50 # Diturunkan biar lebih sensitif
+    if 's_min' not in st.session_state: st.session_state['s_min'] = 20
+    if 'v_min' not in st.session_state: st.session_state['v_min'] = 50
     if 'h_max' not in st.session_state: st.session_state['h_max'] = 30
     if 's_max' not in st.session_state: st.session_state['s_max'] = 255
     if 'v_max' not in st.session_state: st.session_state['v_max'] = 255
