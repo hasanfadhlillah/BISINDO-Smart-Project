@@ -9,12 +9,12 @@ IMG_SIZE = 128
 CLASSES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 
            'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 
-# Load Model
+# Load Model (Global)
 model = None
-def load_trained_model(path='bisindo_smart_model.h5'):
+def load_trained_model(path='bisindo_smart_model.keras'):
     global model
     if model is None:
-        model = tf.keras.models.load_model(path)
+        model = tf.keras.models.load_model(path, compile=False)
     return model
 
 def preprocess_image(roi, h_min, s_min, v_min, h_max, s_max, v_max):

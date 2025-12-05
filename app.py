@@ -1,16 +1,18 @@
 import streamlit as st
 import cv2
 import numpy as np
-import utils # Import fungsi kita sendiri
+import utils
 from PIL import Image
 
 # Konfigurasi Halaman
 st.set_page_config(page_title="BISINDO-Smart", page_icon="🖐️", layout="wide")
 
-# Load Model Sekali Saja
-utils.load_trained_model()
+# Load Model
+try:
+    utils.load_trained_model()
+except Exception as e:
+    st.error(f"Gagal memuat model. Pastikan file 'bisindo_smart_model.keras' ada. Error: {e}")
 
-# CSS agar tampilan lebih cantik (Opsional)
 st.markdown("""
     <style>
     .main {
@@ -22,12 +24,10 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Header
 st.title("🖐️ BISINDO-Smart Translator")
 st.markdown("### Sistem Penerjemah Bahasa Isyarat Indonesia (BISINDO) Berbasis AI")
 st.info("Aplikasi ini menggabungkan **Pengolahan Citra Digital** (HSV & Morfologi) dengan **Deep Learning** (CNN MobileNetV2).")
 
-# Layout 2 Kolom
 col1, col2 = st.columns([1, 2])
 
 with col1:
@@ -88,7 +88,3 @@ with col2:
                     st.warning("⚠️ Akurasi Rendah")
             else:
                 st.error("❌ Tangan Tidak Terdeteksi")
-
-# Footer
-st.markdown("---")
-st.caption("Dikembangkan untuk Tugas Akhir Pengolahan Citra Digital & Visi Komputer - FILKOM UB")
