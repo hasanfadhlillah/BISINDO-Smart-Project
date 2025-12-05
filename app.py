@@ -28,7 +28,7 @@ st.info("Aplikasi ini menggabungkan **Pengolahan Citra Digital** (HSV, Morfologi
 col_control, col_cam, col_result = st.columns([1, 2, 1])
 
 with col_control:
-    st.header("⚙️ Kalibrasi")
+    st.header("⚙️ Kalibrasi HSV")
     st.write("Geser slider sampai area tangan di kanan menjadi **PUTIH** dan latar belakang **HITAM**.")
     
     # Gunakan Session State untuk menyimpan nilai slider
