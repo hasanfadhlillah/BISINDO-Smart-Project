@@ -2,67 +2,57 @@
 
 import cv2
 import numpy as np
-import os
-import platform
-IS_WINDOWS = platform.system() == 'Windows'
 
-if IS_WINDOWS:
-    # Di Laptop: Pakai TensorFlow
-    try:
-        import tensorflow.lite as tflite
-        print("💻 Mode Laptop: Menggunakan TensorFlow Lite")
-    except ImportError:
-        print("⚠️ Warning: TensorFlow belum diinstall di laptop.")
-        tflite = None
-else:
-    # Di Streamlit Cloud: Pakai TFLite Runtime
-    try:
-        import tflite_runtime.interpreter as tflite
-        print("☁️ Mode Cloud: Menggunakan TFLite Runtime")
-    except ImportError:
-        # Fallback terakhir
-        try:
-            import tensorflow.lite as tflite
-        except:
-            tflite = None
-
-# Global Variables
+# INISIALISASI VARIABEL GLOBAL (PENTING!)
+USING_TFLITE = False
 interpreter = None
 model = None
 input_details = None
 output_details = None
 
+try:
+    # Coba TFLite Runtime (Untuk Streamlit Cloud / Perangkat Kecil)
+    import tflite_runtime.interpreter as tflite
+    USING_TFLITE = True
+    print("✅ Menggunakan TFLite Runtime (Optimized)")
+except ImportError:
+    try:
+        # Coba TensorFlow Lite bawaan (Untuk Laptop Windows)
+        import tensorflow.lite as tflite
+        USING_TFLITE = True
+        print("✅ Menggunakan TensorFlow Lite (Standard)")
+    except ImportError:
+        try:
+            import tensorflow as tf
+            USING_TFLITE = False
+            print("✅ Menggunakan TensorFlow Keras (Heavy)")
+        except ImportError:
+            print("⚠️ Tidak ada library TensorFlow/TFLite)")
+
 CLASSES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 
            'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 
-def load_trained_model(path='bisindo_smart_model.tflite'):
+def load_trained_model(path_tflite='bisindo_smart_model.tflite', path_keras='bisindo_smart_model.keras'):
     global interpreter, model, input_details, output_details
     
     if USING_TFLITE:
         try:
-            interpreter = tflite.Interpreter(model_path=path)
+            interpreter = tflite.Interpreter(model_path=path_tflite)
             interpreter.allocate_tensors()
             input_details = interpreter.get_input_details()
             output_details = interpreter.get_output_details()
-            print("✅ Menggunakan TFLite Runtime")
+            return interpreter
         except Exception as e:
-            print(f"⚠️ Gagal load TFLite: {e}")
-            try:
-                 import tensorflow as tf
-                 model = tf.keras.models.load_model('bisindo_smart_model.keras', compile=False)
-                 print("⚠️ Fallback ke TensorFlow Keras")
-            except:
-                 raise e
+            print(f"❌ Gagal load TFLite: {e}")
     else:
         if model is None:
             try:
-                import tensorflow as tf
-                model = tf.keras.models.load_model('bisindo_smart_model.keras', compile=False)
-                print("✅ Menggunakan TensorFlow Keras")
-            except ImportError:
-                print("❌ TensorFlow tidak terinstall!")
-
-    return interpreter if USING_TFLITE else model
+                model = tf.keras.models.load_model(path_keras, compile=False)
+                return model
+            except Exception as e:
+                print(f"❌ Gagal load Keras: {e}")
+    
+    return None
 
 def preprocess_image(roi, h_min, s_min, v_min, h_max, s_max, v_max):
     """
@@ -90,7 +80,7 @@ def predict_gesture(roi, mask):
     Melakukan Prediksi menggunakan Model CNN
     Materi: Featrure Extraction / Klasifikasi Citra
     """
-    # Cari Kontur
+    # Cari Kontur Tangan
     contours, _ = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     
     if len(contours) > 0:
@@ -111,19 +101,33 @@ def predict_gesture(roi, mask):
             hand_img = roi[y1:y2, x1:x2]
             
             if hand_img.size > 0:
+                # Resize (128x128)
                 img_input = cv2.resize(hand_img, (128, 128))
-                img_input = np.expand_dims(img_input, axis=0).astype(np.float32)
-                img_input = img_input / 255.0
                 
-                # Inferensi
-                interpreter.set_tensor(input_details[0]['index'], img_input)
-                interpreter.invoke()
-                output_data = interpreter.get_tensor(output_details[0]['index'])
+                idx = 0
+                conf = 0.0
                 
-                idx = np.argmax(output_data)
-                conf = output_data[0][idx]
+                if USING_TFLITE and interpreter is not None:
+                    # Inferensi TFLite
+                    img_input = np.expand_dims(img_input, axis=0).astype(np.float32)
+                    img_input = img_input / 255.0
+                    
+                    interpreter.set_tensor(input_details[0]['index'], img_input)
+                    interpreter.invoke()
+                    output_data = interpreter.get_tensor(output_details[0]['index'])
+                    
+                    idx = np.argmax(output_data)
+                    conf = output_data[0][idx]
+                    
+                elif not USING_TFLITE and model is not None:
+                    # Inferensi Keras
+                    img_input = np.expand_dims(img_input, axis=0)
+                    img_input = img_input / 255.0
+                    preds = model.predict(img_input, verbose=0)
+                    idx = np.argmax(preds)
+                    conf = preds[0][idx]
+                
                 label = CLASSES[idx]
-                
                 return label, conf, (x1, y1, x2, y2)
     
     return None, 0.0, None
