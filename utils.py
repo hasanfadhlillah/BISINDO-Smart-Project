@@ -2,7 +2,13 @@
 
 import cv2
 import numpy as np
-import tflite_runtime.interpreter as tflite
+try:
+    import tflite_runtime.interpreter as tflite
+except ImportError:
+    try:
+        import tensorflow.lite as tflite
+    except ImportError:
+        raise ImportError("Tidak ada module TFLite maupun TensorFlow.")
 
 # Global Variables
 interpreter = None
@@ -16,11 +22,15 @@ CLASSES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
 
 def load_trained_model(path='bisindo_smart_model.tflite'):
     global interpreter, input_details, output_details
-    if interpreter is None:
-        interpreter = tflite.Interpreter(model_path=path)
-        interpreter.allocate_tensors()
-        input_details = interpreter.get_input_details()
-        output_details = interpreter.get_output_details()
+    
+    # Load Interpreter
+    interpreter = tflite.Interpreter(model_path=path)
+    interpreter.allocate_tensors()
+    
+    # Dapatkan info input/output
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+    
     return interpreter
 
 def preprocess_image(roi, h_min, s_min, v_min, h_max, s_max, v_max):
@@ -71,13 +81,16 @@ def predict_gesture(roi, mask):
             
             if hand_img.size > 0:
                 # Resize & Normalize
-                img_input = cv2.resize(hand_img, (IMG_SIZE, IMG_SIZE))
-                img_input = np.expand_dims(img_input, axis=0) / 255.0
+                img_input = cv2.resize(hand_img, (128, 128))
+                img_input = np.expand_dims(img_input, axis=0).astype(np.float32) 
+                img_input = img_input / 255.0
                 
-                # Prediksi
-                preds = model.predict(img_input, verbose=0)
-                idx = np.argmax(preds)
-                conf = preds[0][idx]
+                interpreter.set_tensor(input_details[0]['index'], img_input)
+                interpreter.invoke()
+                output_data = interpreter.get_tensor(output_details[0]['index'])
+                
+                idx = np.argmax(output_data)
+                conf = output_data[0][idx]
                 label = CLASSES[idx]
                 
                 return label, conf, (x1, y1, x2, y2)
