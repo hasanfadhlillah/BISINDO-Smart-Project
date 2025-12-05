@@ -1,7 +1,6 @@
-streamlit==1.28.0
-streamlit-webrtc==0.47.0
+streamlit
 opencv-python-headless
-numpy<2.0.0
+numpy
 Pillow
 https://github.com/feranick/TFLite-builds/releases/download/v2.10.0/tflite_runtime-2.10.0-cp39-cp39-linux_x86_64.whl; python_version == '3.9'
 https://github.com/feranick/TFLite-builds/releases/download/v2.10.0/tflite_runtime-2.10.0-cp310-cp310-linux_x86_64.whl; python_version == '3.10'
