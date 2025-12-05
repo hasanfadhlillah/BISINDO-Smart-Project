@@ -68,10 +68,10 @@ def preprocess_image(roi, h_min, s_min, v_min, h_max, s_max, v_max):
     mask = cv2.inRange(hsv, lower_skin, upper_skin)
     
     # 3. Operasi Morfologi (Opening & Closing)
-    kernel = np.ones((5, 5), np.uint8)
+    kernel = np.ones((3, 3), np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel) # Opening: Hilangkan bintik putih di background
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel) # Closing: Tutup lubang hitam di dalam tangan
-    mask = cv2.GaussianBlur(mask, (5, 5), 0) # Smoothing
+    mask = cv2.GaussianBlur(mask, (3, 3), 0) # Smoothing halus
     
     return mask
 
@@ -85,7 +85,8 @@ def predict_gesture(roi, mask):
     
     if len(contours) > 0:
         c = max(contours, key=cv2.contourArea)
-        if cv2.contourArea(c) > 500:
+        area = cv2.contourArea(c)
+        if area > 200:
             # Auto-Crop (Materi P17: Bounding Rect)
             x, y, w, h = cv2.boundingRect(c)
             

@@ -74,18 +74,21 @@ if img_file_buffer is not None:
     # 1. PREPROCESSING (Selalu dijalankan)
     mask = utils.preprocess_image(roi, h_min, s_min, v_min, h_max, s_max, v_max)
     
+    # Hitung jumlah piksel putih untuk debugging
+    white_pixels = np.sum(mask == 255)
+    
     # 2. PREDIKSI
     label, conf, box = utils.predict_gesture(roi, mask)
     
     with col_result:
         # Tampilkan Masker
-        st.image(mask, caption="Binary Mask (Putih=Tangan)", use_container_width=True)
+        st.image(mask, caption=f"Binary Mask (Pixels: {white_pixels})", use_container_width=True)
         
         # Berikan feedback ke user
-        if np.sum(mask) < 1000:
-            st.warning("⚠️ **Masker terlalu gelap!**")
-            st.markdown("Turunkan **Saturation Min** atau **Value Min** di sebelah kiri.")
-        elif np.sum(mask) > (mask.shape[0]*mask.shape[1] * 0.8):
+        if white_pixels < 200: # Batas minimal diturunkan
+            st.warning("⚠️ **Tidak ada tangan terdeteksi!**")
+            st.markdown(f"Piksel putih hanya {white_pixels}. Coba turunkan **Saturation Min** atau atur **Hue**.")
+        elif white_pixels > (mask.shape[0]*mask.shape[1] * 0.8):
             st.warning("⚠️ **Masker terlalu putih!**")
             st.markdown("Naikkan **Saturation Min** agar background hilang.")
             
@@ -101,7 +104,11 @@ if img_file_buffer is not None:
             st.progress(int(conf * 100))
             st.caption(f"Confidence: {conf*100:.2f}%")
         else:
-            st.error("❌ Objek Tidak Dikenali sebagai Tangan")
+            # PESAN ERROR LEBIH JELAS
+            if white_pixels > 200:
+                st.error("❌ Tangan terdeteksi tapi bentuk tidak jelas (Kontur < 200)")
+            else:
+                st.error("❌ Objek Tidak Dikenali sebagai Tangan")
         
         st.image(roi_display, channels="BGR", caption="Hasil Deteksi", use_container_width=True)
 
