@@ -2,17 +2,29 @@
 
 import cv2
 import numpy as np
-try:
-    import tflite_runtime.interpreter as tflite
-    USING_TFLITE = True
-except ImportError:
+import os
+import platform
+IS_WINDOWS = platform.system() == 'Windows'
+
+if IS_WINDOWS:
+    # Di Laptop: Pakai TensorFlow
     try:
         import tensorflow.lite as tflite
-        USING_TFLITE = True
+        print("💻 Mode Laptop: Menggunakan TensorFlow Lite")
     except ImportError:
-        # Fallback ke TensorFlow biasa (untuk Laptop Windows)
-        import tensorflow as tf
-        USING_TFLITE = False
+        print("⚠️ Warning: TensorFlow belum diinstall di laptop.")
+        tflite = None
+else:
+    # Di Streamlit Cloud: Pakai TFLite Runtime
+    try:
+        import tflite_runtime.interpreter as tflite
+        print("☁️ Mode Cloud: Menggunakan TFLite Runtime")
+    except ImportError:
+        # Fallback terakhir
+        try:
+            import tensorflow.lite as tflite
+        except:
+            tflite = None
 
 # Global Variables
 interpreter = None
@@ -23,24 +35,18 @@ output_details = None
 CLASSES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 
            'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 
-def load_trained_model(path_tflite='bisindo_smart_model.tflite', path_keras='bisindo_smart_model.keras'):
-    global interpreter, model, input_details, output_details
+def load_trained_model(path='bisindo_smart_model.tflite'):
+    global interpreter, input_details, output_details
     
-    if USING_TFLITE:
-        # Load TFLite (Ringan)
-        try:
-            interpreter = tflite.Interpreter(model_path=path_tflite)
-            interpreter.allocate_tensors()
-            input_details = interpreter.get_input_details()
-            output_details = interpreter.get_output_details()
-            print("✅ Menggunakan TFLite Runtime")
-        except Exception as e:
-            print(f"⚠️ Gagal load TFLite: {e}")
-    else:
-        # Load Keras (Berat - Laptop Only)
-        if model is None:
-            model = tf.keras.models.load_model(path_keras, compile=False)
-            print("✅ Menggunakan TensorFlow Keras")
+    if tflite is None:
+        raise ImportError("Module TFLite tidak ditemukan!")
+
+    interpreter = tflite.Interpreter(model_path=path)
+    interpreter.allocate_tensors()
+    
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+    return interpreter
 
 def preprocess_image(roi, h_min, s_min, v_min, h_max, s_max, v_max):
     """
@@ -89,29 +95,19 @@ def predict_gesture(roi, mask):
             hand_img = roi[y1:y2, x1:x2]
             
             if hand_img.size > 0:
-                # Resize
                 img_input = cv2.resize(hand_img, (128, 128))
+                img_input = np.expand_dims(img_input, axis=0).astype(np.float32)
+                img_input = img_input / 255.0
                 
-                if USING_TFLITE:
-                    # Prediksi pakai TFLite
-                    img_input = np.expand_dims(img_input, axis=0).astype(np.float32)
-                    img_input = img_input / 255.0
-                    
-                    interpreter.set_tensor(input_details[0]['index'], img_input)
-                    interpreter.invoke()
-                    output_data = interpreter.get_tensor(output_details[0]['index'])
-                    
-                    idx = np.argmax(output_data)
-                    conf = output_data[0][idx]
-                else:
-                    # Prediksi pakai Keras
-                    img_input = np.expand_dims(img_input, axis=0)
-                    img_input = img_input / 255.0
-                    preds = model.predict(img_input, verbose=0)
-                    idx = np.argmax(preds)
-                    conf = preds[0][idx]
+                # Inferensi
+                interpreter.set_tensor(input_details[0]['index'], img_input)
+                interpreter.invoke()
+                output_data = interpreter.get_tensor(output_details[0]['index'])
                 
+                idx = np.argmax(output_data)
+                conf = output_data[0][idx]
                 label = CLASSES[idx]
+                
                 return label, conf, (x1, y1, x2, y2)
     
     return None, 0.0, None
