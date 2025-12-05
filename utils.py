@@ -85,7 +85,7 @@ def predict_gesture(roi, mask):
     
     if len(contours) > 0:
         c = max(contours, key=cv2.contourArea)
-        if cv2.contourArea(c) > 2000: # Filter noise kecil
+        if cv2.contourArea(c) > 500:
             # Auto-Crop (Materi P17: Bounding Rect)
             x, y, w, h = cv2.boundingRect(c)
             

@@ -25,15 +25,16 @@ st.title("🖐️ BISINDO-Smart Real-Time Translator")
 st.markdown("### Sistem Penerjemah Bahasa Isyarat Indonesia (BISINDO)")
 st.info("Aplikasi ini menggabungkan **Pengolahan Citra Digital** (HSV, Morfologi,& Shape/Contour Extraction) dengan **Deep Learning** (CNN MobileNetV2).")
 
-# Real-time Tuning - Sider Kalibrasi HSV
-with st.sidebar:
-    st.sidebar.title("⚙️ Kalibrasi Kulit (HSV)")
-    st.sidebar.info("Atur slider agar tangan di kotak kecil (mask) terlihat putih bersih.")
+col_control, col_cam, col_result = st.columns([1, 2, 1])
+
+with col_control:
+    st.header("⚙️ Kalibrasi")
+    st.write("Geser slider sampai area tangan di kanan menjadi **PUTIH** dan latar belakang **HITAM**.")
     
-    # Kita pakai session state agar nilai tidak reset saat ambil foto
+    # Gunakan Session State untuk menyimpan nilai slider
     if 'h_min' not in st.session_state: st.session_state['h_min'] = 0
-    if 's_min' not in st.session_state: st.session_state['s_min'] = 40
-    if 'v_min' not in st.session_state: st.session_state['v_min'] = 60
+    if 's_min' not in st.session_state: st.session_state['s_min'] = 20 # Diturunkan biar lebih sensitif
+    if 'v_min' not in st.session_state: st.session_state['v_min'] = 50 # Diturunkan biar lebih sensitif
     if 'h_max' not in st.session_state: st.session_state['h_max'] = 30
     if 's_max' not in st.session_state: st.session_state['s_max'] = 255
     if 'v_max' not in st.session_state: st.session_state['v_max'] = 255
@@ -45,64 +46,68 @@ with st.sidebar:
     s_max = st.slider("Saturation Max", 0, 255, st.session_state['s_max'])
     v_max = st.slider("Value Max", 0, 255, st.session_state['v_max'])
 
-col1, col2 = st.columns([1.5, 1])
+with col_cam:
+    st.header("📸 Kamera")
+    img_file_buffer = st.camera_input("Ambil Foto Gestur Tangan")
 
-with col1:
-    st.subheader("📸 Ambil Gambar")
-    # Input Kamera Native Streamlit
-    img_file_buffer = st.camera_input("Arahkan tangan ke kamera lalu klik 'Take Photo'")
+with col_result:
+    st.header("🧠 Analisis")
 
-with col2:
-    st.subheader("🧠 Hasil Analisis")
+if img_file_buffer is not None:
+    # Konversi ke OpenCV
+    bytes_data = img_file_buffer.getvalue()
+    frame = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
     
-    if img_file_buffer is not None:
-        # Konversi Buffer -> OpenCV Image
-        bytes_data = img_file_buffer.getvalue()
-        frame = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
+    # Flip
+    frame = cv2.flip(frame, 1)
+    
+    # ROI Otomatis (Tengah)
+    h, w, _ = frame.shape
+    box_size = 400
+    start_x = max(0, (w - box_size) // 2)
+    start_y = max(0, (h - box_size) // 2)
+    end_x = min(w, start_x + box_size)
+    end_y = min(h, start_y + box_size)
+    
+    roi = frame[start_y:end_y, start_x:end_x]
+    
+    # 1. PREPROCESSING (Selalu dijalankan)
+    mask = utils.preprocess_image(roi, h_min, s_min, v_min, h_max, s_max, v_max)
+    
+    # 2. PREDIKSI
+    label, conf, box = utils.predict_gesture(roi, mask)
+    
+    with col_result:
+        # Tampilkan Masker
+        st.image(mask, caption="Binary Mask (Putih=Tangan)", use_container_width=True)
         
-        # Flip Horizontal (Cermin)
-        frame = cv2.flip(frame, 1)
-        
-        # Define ROI (Kotak Biru)
-        h, w, _ = frame.shape
-        box_size = 400
-        start_x, start_y = max(0, (w - box_size) // 2), max(0, (h - box_size) // 2)
-        end_x, end_y = min(w, start_x + box_size), min(h, start_y + box_size)
-        
-        roi = frame[start_y:end_y, start_x:end_x]
-        
-        # 1. PREPROCESSING (HSV + Morfologi)
-        mask = utils.preprocess_image(
-            roi, 
-            h_min, s_min, v_min, 
-            h_max, s_max, v_max
-        )
-        
-        # 2. PREDIKSI
-        label, conf, box = utils.predict_gesture(roi, mask)
-        
-        # 3. VISUALISASI
-        # Tampilkan Masking
-        st.image(mask, caption="Binary Mask (Segmentasi HSV + Morfologi)", width=250)
-        
-        # Tampilkan Hasil ROI dengan Kotak Hijau
+        # Berikan feedback ke user
+        if np.sum(mask) < 1000:
+            st.warning("⚠️ **Masker terlalu gelap!**")
+            st.markdown("Turunkan **Saturation Min** atau **Value Min** di sebelah kiri.")
+        elif np.sum(mask) > (mask.shape[0]*mask.shape[1] * 0.8):
+            st.warning("⚠️ **Masker terlalu putih!**")
+            st.markdown("Naikkan **Saturation Min** agar background hilang.")
+            
+    with col_cam:
         roi_display = roi.copy()
+        
         if label:
             x1, y1, x2, y2 = box
+            # Gambar kotak hijau
             cv2.rectangle(roi_display, (x1, y1), (x2, y2), (0, 255, 0), 3)
-            st.success(f"Terdeteksi: Huruf **{label}**")
             
-            # Meteran Keyakinan
+            st.success(f"Huruf Terdeteksi: **{label}**")
             st.progress(int(conf * 100))
-            st.caption(f"Confidence Score: {conf*100:.2f}%")
+            st.caption(f"Confidence: {conf*100:.2f}%")
         else:
-            st.warning("Tangan tidak terdeteksi. Coba atur pencahayaan atau slider HSV.")
-            
-        # Tampilkan ROI Asli
-        st.image(roi_display, channels="BGR", caption="Region of Interest (ROI)")
+            st.error("❌ Objek Tidak Dikenali sebagai Tangan")
+        
+        st.image(roi_display, channels="BGR", caption="Hasil Deteksi", use_container_width=True)
 
-    else:
-        st.info("Silakan ambil foto untuk memulai deteksi.")
+else:
+    with col_result:
+        st.info("Menunggu input kamera...")
 
 st.divider()
 st.caption("Made with ❤️ by SunShine Team")
