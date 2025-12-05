@@ -11,10 +11,7 @@ from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
 st.set_page_config(page_title="BISINDO-Smart Live", page_icon="🖐️", layout="wide")
 
 # Load Model
-try:
-    utils.load_trained_model(path_tflite='bisindo_smart_model.tflite')
-except Exception as e:
-    st.error(f"❌ Error Load Model: {e}")
+utils.load_trained_model()
 
 st.title("🖐️ BISINDO-Smart Real-Time Translator")
 st.markdown("### Sistem Penerjemah Bahasa Isyarat Indonesia (BISINDO)")

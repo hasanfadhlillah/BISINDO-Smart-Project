@@ -36,17 +36,33 @@ CLASSES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
            'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 
 def load_trained_model(path='bisindo_smart_model.tflite'):
-    global interpreter, input_details, output_details
+    global interpreter, model, input_details, output_details
     
-    if tflite is None:
-        raise ImportError("Module TFLite tidak ditemukan!")
+    if USING_TFLITE:
+        try:
+            interpreter = tflite.Interpreter(model_path=path)
+            interpreter.allocate_tensors()
+            input_details = interpreter.get_input_details()
+            output_details = interpreter.get_output_details()
+            print("✅ Menggunakan TFLite Runtime")
+        except Exception as e:
+            print(f"⚠️ Gagal load TFLite: {e}")
+            try:
+                 import tensorflow as tf
+                 model = tf.keras.models.load_model('bisindo_smart_model.keras', compile=False)
+                 print("⚠️ Fallback ke TensorFlow Keras")
+            except:
+                 raise e
+    else:
+        if model is None:
+            try:
+                import tensorflow as tf
+                model = tf.keras.models.load_model('bisindo_smart_model.keras', compile=False)
+                print("✅ Menggunakan TensorFlow Keras")
+            except ImportError:
+                print("❌ TensorFlow tidak terinstall!")
 
-    interpreter = tflite.Interpreter(model_path=path)
-    interpreter.allocate_tensors()
-    
-    input_details = interpreter.get_input_details()
-    output_details = interpreter.get_output_details()
-    return interpreter
+    return interpreter if USING_TFLITE else model
 
 def preprocess_image(roi, h_min, s_min, v_min, h_max, s_max, v_max):
     """
