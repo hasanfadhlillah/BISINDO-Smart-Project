@@ -5,17 +5,25 @@ import cv2
 import numpy as np
 import utils
 import av
-from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode, RTCConfiguration
 
-# Konfigurasi Halaman
 st.set_page_config(page_title="BISINDO-Smart Live", page_icon="🖐️", layout="wide")
 
+# KONFIGURASI SERVER STUN
+RTC_CONFIGURATION = RTCConfiguration(
+    {"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]}
+)
+
 # Load Model
-utils.load_trained_model()
+try:
+    # Kita panggil tanpa argumen agar pakai default path
+    utils.load_trained_model()
+except Exception as e:
+    st.error(f"❌ Error Load Model: {e}")
 
 st.title("🖐️ BISINDO-Smart Real-Time Translator")
 st.markdown("### Sistem Penerjemah Bahasa Isyarat Indonesia (BISINDO)")
-st.info("Aplikasi ini menggabungkan **Pengolahan Citra Digital** (HSV & Morfologi) dengan **Deep Learning** (CNN MobileNetV2).")
+st.info("Aplikasi ini menggabungkan **Pengolahan Citra Digital** (HSV, Morfologi, & Shape/Contour Extraction) dengan **Deep Learning** (CNN MobileNetV2).")
 
 # Real-time Tuning
 st.sidebar.title("⚙️ Kalibrasi Kulit (HSV)")
@@ -46,8 +54,8 @@ class VideoProcessor(VideoTransformerBase):
         cv2.rectangle(img, (50, 50), (450, 450), (255, 0, 0), 2)
         roi = img[50:450, 50:450]
         
-        # PREPROCESSING (HSV + Morfologi
-        # Ambil nilai slider langsung dari variabel global streamlit
+        # PREPROCESSING (HSV + Morfologi)
+        # Mengambil nilai slider langsung dari slider global
         mask = utils.preprocess_image(
             roi, 
             h_min, s_min, v_min, 
@@ -58,7 +66,7 @@ class VideoProcessor(VideoTransformerBase):
         label, conf, box = utils.predict_gesture(roi, mask)
         
         # VISUALISASI HASIL
-        # A. Tampilkan Masking Kecil (Pojok Kanan Atas biar beda dikit)
+        # A. Tampilkan Masking Kecil (Pojok Kanan Atas)
         mask_bgr = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
         mask_small = cv2.resize(mask_bgr, (120, 120))
         img[10:130, w-130:w-10] = mask_small
@@ -81,26 +89,26 @@ class VideoProcessor(VideoTransformerBase):
         
         return av.VideoFrame.from_ndarray(img, format="bgr24")
 
-# UI UTAMA
+# Layout Utama
 col_video, col_info = st.columns([3, 1])
 
 with col_video:
     st.markdown("#### Live Webcam Feed")
-    # Menjalankan WebRTC Streamer
     webrtc_streamer(
         key="bisindo-live",
         mode=WebRtcMode.SENDRECV,
+        rtc_configuration=RTC_CONFIGURATION,
         video_processor_factory=VideoProcessor,
         media_stream_constraints={"video": True, "audio": False},
         async_processing=True,
     )
-
 with col_info:
     st.info("💡 **Panduan:**")
     st.markdown("""
     1. Izinkan akses kamera.
+    2. Jika macet, coba refresh atau ganti jaringan (WiFi Kampus kadang memblokir WebRTC).
     2. Masukkan tangan ke dalam **Kotak Biru**.
-    3. Atur slider di kiri sampai tangan di kotak kecil ("Binary Mask") terlihat **putih bersih**.
+    3. Atur slider di kiri sampai tangan di kotak kecil ("Binary Mask") terlihat **putih**.
     4. Lakukan gerakan tangan BISINDO.
     """)
     st.warning("Pastikan cahaya ruangan cukup terang!")
