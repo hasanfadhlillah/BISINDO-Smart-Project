@@ -1,3 +1,5 @@
+# Aplikasi Web - Streamlit
+
 import streamlit as st
 import cv2
 import numpy as np
@@ -8,9 +10,9 @@ from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
 # Konfigurasi Halaman
 st.set_page_config(page_title="BISINDO-Smart Live", page_icon="🖐️", layout="wide")
 
-# Load Model (Cache agar cepat)
+# Load Model
 try:
-    utils.load_trained_model()
+    utils.load_trained_model(path_tflite='bisindo_smart_model.tflite')
 except Exception as e:
     st.error(f"❌ Error Load Model: {e}")
 

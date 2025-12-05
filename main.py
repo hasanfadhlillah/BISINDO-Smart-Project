@@ -1,3 +1,5 @@
+# Aplikasi Desktop Lokal - OpenCV
+
 import cv2
 import utils
 from collections import deque
