@@ -8,7 +8,7 @@ from collections import deque
 utils.load_trained_model()
 
 # Smoothing
-prediction_history = deque(maxlen=20)
+prediction_history = deque(maxlen=30)
 
 def nothing(x): pass
 
@@ -57,7 +57,7 @@ while True:
         if len(prediction_history) > 0:
             most_common = max(set(prediction_history), key=prediction_history.count)
             
-            if prediction_history.count(most_common) > (prediction_history.maxlen * 0.6):
+            if prediction_history.count(most_common) > (prediction_history.maxlen * 0.5):
                 final_label = most_common
         
         # Gambar Kotak Hijau Dinamis
