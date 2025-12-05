@@ -38,7 +38,7 @@ def preprocess_image(roi, h_min, s_min, v_min, h_max, s_max, v_max):
     Melakukan Preprocessing (HSV -> Thresholding -> Morphology)
     Materi: Modul 3 (Color Space) & Modul 11 (Morfologi)
     """
-    # 1. Konversi ke HSV
+    # 1. Konversi RGB ke HSV
     hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
     
     # 2. Segmentasi Kulit (Thresholding)

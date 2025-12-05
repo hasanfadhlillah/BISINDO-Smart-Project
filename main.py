@@ -6,7 +6,7 @@ from collections import deque
 utils.load_trained_model()
 
 # Smoothing
-prediction_history = deque(maxlen=8)
+prediction_history = deque(maxlen=5)
 
 def nothing(x): pass
 
