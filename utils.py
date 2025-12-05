@@ -119,7 +119,6 @@ def predict_gesture(roi, mask):
                     conf = float(output_data[0][idx]) # Ambil nilai confidence
                     
                 elif not USING_TFLITE and model is not None:
-                    # Inferensi Keras (Laptop)
                     input_data = np.expand_dims(img_resized, axis=0)
                     input_data = input_data / 255.0
                     
