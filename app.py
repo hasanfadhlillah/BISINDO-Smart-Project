@@ -107,9 +107,9 @@ with col_info:
     st.markdown("""
     1. Izinkan akses kamera.
     2. Jika macet, coba refresh atau ganti jaringan (WiFi Kampus kadang memblokir WebRTC).
-    2. Masukkan tangan ke dalam **Kotak Biru**.
-    3. Atur slider di kiri sampai tangan di kotak kecil ("Binary Mask") terlihat **putih**.
-    4. Lakukan gerakan tangan BISINDO.
+    3. Masukkan tangan ke dalam **Kotak Biru**.
+    4. Atur slider di kiri sampai tangan di kotak kecil ("Binary Mask") terlihat **putih**.
+    5. Lakukan gerakan tangan BISINDO.
     """)
     st.warning("Pastikan cahaya ruangan cukup terang!")
 
