@@ -8,7 +8,7 @@ from collections import deque
 utils.load_trained_model()
 
 # Smoothing
-prediction_history = deque(maxlen=5)
+prediction_history = deque(maxlen=20)
 
 def nothing(x): pass
 
@@ -50,9 +50,15 @@ while True:
     final_label = "-"
     
     if label:
-        # Smoothing Hasil
-        prediction_history.append(label)
-        final_label = max(set(prediction_history), key=prediction_history.count)
+        if conf > 0.5:
+            prediction_history.append(label)
+        
+        # Ambil mayoritas (Voting)
+        if len(prediction_history) > 0:
+            most_common = max(set(prediction_history), key=prediction_history.count)
+            
+            if prediction_history.count(most_common) > (prediction_history.maxlen * 0.6):
+                final_label = most_common
         
         # Gambar Kotak Hijau Dinamis
         x1, y1, x2, y2 = box
