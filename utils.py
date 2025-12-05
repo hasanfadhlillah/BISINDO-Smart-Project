@@ -2,20 +2,26 @@
 
 import cv2
 import numpy as np
-import tensorflow as tf
+import tflite_runtime.interpreter as tflite
+
+# Global Variables
+interpreter = None
+input_details = None
+output_details = None
 
 # Konfigurasi Global
 IMG_SIZE = 128
 CLASSES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 
            'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z']
 
-# Load Model (Global)
-model = None
-def load_trained_model(path='bisindo_smart_model.keras'):
-    global model
-    if model is None:
-        model = tf.keras.models.load_model(path, compile=False)
-    return model
+def load_trained_model(path='bisindo_smart_model.tflite'):
+    global interpreter, input_details, output_details
+    if interpreter is None:
+        interpreter = tflite.Interpreter(model_path=path)
+        interpreter.allocate_tensors()
+        input_details = interpreter.get_input_details()
+        output_details = interpreter.get_output_details()
+    return interpreter
 
 def preprocess_image(roi, h_min, s_min, v_min, h_max, s_max, v_max):
     """
