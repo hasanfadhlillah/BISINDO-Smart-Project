@@ -4,10 +4,16 @@ import streamlit as st
 import cv2
 import numpy as np
 import utils
-import av
-from streamlit_webrtc import webrtc_streamer, VideoProcessorBase, WebRtcMode, RTCConfiguration
+from PIL import Image
 
 st.set_page_config(page_title="BISINDO-Smart Live", page_icon="🖐️", layout="wide")
+st.markdown("""
+    <style>
+    .main { background-color: #f0f2f6; }
+    .stButton>button { width: 100%; }
+    div[data-testid="stMetricValue"] { font-size: 24px; }
+    </style>
+    """, unsafe_allow_html=True)
 
 # Load Model
 try:
@@ -20,112 +26,83 @@ st.markdown("### Sistem Penerjemah Bahasa Isyarat Indonesia (BISINDO)")
 st.info("Aplikasi ini menggabungkan **Pengolahan Citra Digital** (HSV, Morfologi,& Shape/Contour Extraction) dengan **Deep Learning** (CNN MobileNetV2).")
 
 # Real-time Tuning - Sider Kalibrasi HSV
-st.sidebar.title("⚙️ Kalibrasi Kulit (HSV)")
-st.sidebar.info("Atur slider agar tangan di kotak kecil (mask) terlihat putih bersih.")
+with st.sidebar:
+    st.sidebar.title("⚙️ Kalibrasi Kulit (HSV)")
+    st.sidebar.info("Atur slider agar tangan di kotak kecil (mask) terlihat putih bersih.")
+    
+    # Kita pakai session state agar nilai tidak reset saat ambil foto
+    if 'h_min' not in st.session_state: st.session_state['h_min'] = 0
+    if 's_min' not in st.session_state: st.session_state['s_min'] = 40
+    if 'v_min' not in st.session_state: st.session_state['v_min'] = 60
+    if 'h_max' not in st.session_state: st.session_state['h_max'] = 30
+    if 's_max' not in st.session_state: st.session_state['s_max'] = 255
+    if 'v_max' not in st.session_state: st.session_state['v_max'] = 255
 
-if 'h_min' not in st.session_state: st.session_state['h_min'] = 0
-if 's_min' not in st.session_state: st.session_state['s_min'] = 40
-if 'v_min' not in st.session_state: st.session_state['v_min'] = 60
-if 'h_max' not in st.session_state: st.session_state['h_max'] = 30
-if 's_max' not in st.session_state: st.session_state['s_max'] = 255
-if 'v_max' not in st.session_state: st.session_state['v_max'] = 255
+    h_min = st.slider("Hue Min", 0, 179, st.session_state['h_min'])
+    s_min = st.slider("Saturation Min", 0, 255, st.session_state['s_min'])
+    v_min = st.slider("Value Min", 0, 255, st.session_state['v_min'])
+    h_max = st.slider("Hue Max", 0, 179, st.session_state['h_max'])
+    s_max = st.slider("Saturation Max", 0, 255, st.session_state['s_max'])
+    v_max = st.slider("Value Max", 0, 255, st.session_state['v_max'])
 
-if 'h_min' not in st.session_state: st.session_state['h_min'] = 0
-if 's_min' not in st.session_state: st.session_state['s_min'] = 40
-if 'v_min' not in st.session_state: st.session_state['v_min'] = 60
-if 'h_max' not in st.session_state: st.session_state['h_max'] = 30
-if 's_max' not in st.session_state: st.session_state['s_max'] = 255
-if 'v_max' not in st.session_state: st.session_state['v_max'] = 255
+col1, col2 = st.columns([1.5, 1])
 
-# Konfigurasi WebRTC
-RTC_CONFIGURATION = RTCConfiguration(
-    {"iceServers": [
-        {"urls": ["stun:stun.l.google.com:19302"]},
-        {"urls": ["stun:global.stun.twilio.com:3478"]} 
-    ]}
-)
+with col1:
+    st.subheader("📸 Ambil Gambar")
+    # Input Kamera Native Streamlit
+    img_file_buffer = st.camera_input("Arahkan tangan ke kamera lalu klik 'Take Photo'")
 
-# Video Processor
-class HandSignProcessor(VideoProcessorBase):
-    def recv(self, frame):
-        # Konversi WebRTC -> OpenCV
-        img = frame.to_ndarray(format="bgr24")
+with col2:
+    st.subheader("🧠 Hasil Analisis")
+    
+    if img_file_buffer is not None:
+        # Konversi Buffer -> OpenCV Image
+        bytes_data = img_file_buffer.getvalue()
+        frame = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
         
-        # 1. Flip Horizontal (Cermin)
-        img = cv2.flip(img, 1)
-        h, w, _ = img.shape
+        # Flip Horizontal (Cermin)
+        frame = cv2.flip(frame, 1)
         
-        # 2. Define ROI (Kotak Biru) - Fixed position
-        cv2.rectangle(img, (50, 50), (450, 450), (255, 0, 0), 2)
-        roi = img[50:450, 50:450]
+        # Define ROI (Kotak Biru)
+        h, w, _ = frame.shape
+        box_size = 400
+        start_x, start_y = max(0, (w - box_size) // 2), max(0, (h - box_size) // 2)
+        end_x, end_y = min(w, start_x + box_size), min(h, start_y + box_size)
         
-        # 3. PREPROCESSING (HSV + Morfologi)
-        # Mengambil nilai slider global secara real-time
+        roi = frame[start_y:end_y, start_x:end_x]
+        
+        # 1. PREPROCESSING (HSV + Morfologi)
         mask = utils.preprocess_image(
             roi, 
             h_min, s_min, v_min, 
             h_max, s_max, v_max
         )
         
-        # 4. PREDIKSI
+        # 2. PREDIKSI
         label, conf, box = utils.predict_gesture(roi, mask)
         
-        # 5. VISUALISASI
-        # A. Tampilkan Masking Kecil (Pojok Kanan Atas)
-        try:
-            mask_bgr = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
-            mask_small = cv2.resize(mask_bgr, (120, 120))
-            # Tempel mask ke pojok kanan atas
-            img[10:130, w-130:w-10] = mask_small
-            cv2.rectangle(img, (w-130, 10), (w-10, 130), (0, 255, 255), 1)
-            cv2.putText(img, "Binary Mask", (w-125, 120), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 255), 1)
-        except Exception:
-            pass # Hindari crash jika resize gagal
-
-        # B. Gambar Kotak Hijau & Hasil
+        # 3. VISUALISASI
+        # Tampilkan Masking
+        st.image(mask, caption="Binary Mask (Segmentasi HSV + Morfologi)", width=250)
+        
+        # Tampilkan Hasil ROI dengan Kotak Hijau
+        roi_display = roi.copy()
         if label:
             x1, y1, x2, y2 = box
-            # Offset +50 karena ROI dimulai dari (50,50)
-            cv2.rectangle(img, (50+x1, 50+y1), (50+x2, 50+y2), (0, 255, 0), 3)
+            cv2.rectangle(roi_display, (x1, y1), (x2, y2), (0, 255, 0), 3)
+            st.success(f"Terdeteksi: Huruf **{label}**")
             
-            text = f"{label} ({conf*100:.0f}%)"
-            color = (0, 255, 0) if conf > 0.8 else (0, 0, 255)
+            # Meteran Keyakinan
+            st.progress(int(conf * 100))
+            st.caption(f"Confidence Score: {conf*100:.2f}%")
+        else:
+            st.warning("Tangan tidak terdeteksi. Coba atur pencahayaan atau slider HSV.")
             
-            # Background teks hitam biar terbaca
-            cv2.rectangle(img, (50+x1, 50+y1-30), (50+x1+200, 50+y1), (0,0,0), -1)
-            cv2.putText(img, text, (50+x1+5, 50+y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
-        
-        # Kembalikan frame ke WebRTC
-        return av.VideoFrame.from_ndarray(img, format="bgr24")
+        # Tampilkan ROI Asli
+        st.image(roi_display, channels="BGR", caption="Region of Interest (ROI)")
 
-# Layout Utama
-col_video, col_info = st.columns([3, 1])
-
-with col_video:
-    st.markdown("#### Live Webcam Feed")
-    # Menjalankan Streamer dengan Settingan Hemat Bandwidth
-    webrtc_streamer(
-        key="bisindo-live",
-        mode=WebRtcMode.SENDRECV,
-        rtc_configuration=RTC_CONFIGURATION,
-        video_processor_factory=HandSignProcessor,
-        media_stream_constraints={
-            "video": {"width": 480, "height": 360, "frameRate": 15}, # Resolusi rendah agar lancar
-            "audio": False
-        },
-        async_processing=True,
-    )
-
-with col_info:
-    st.info("💡 **Panduan:**")
-    st.markdown("""
-    1. Izinkan akses kamera pada browser.
-    2. Tunggu status berubah jadi "Running".
-    3. Masukkan tangan ke dalam **Kotak Biru**.
-    4. Atur slider di kiri sampai tangan di kotak kecil ("Binary Mask") terlihat **putih**.
-    5. Lakukan gerakan tangan BISINDO.
-    """)
-    st.warning("Pastikan cahaya ruangan cukup terang!")
+    else:
+        st.info("Silakan ambil foto untuk memulai deteksi.")
 
 st.divider()
 st.caption("Made with ❤️ by SunShine Team")
