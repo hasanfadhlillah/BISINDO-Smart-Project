@@ -23,7 +23,7 @@ except Exception as e:
 
 st.title("🖐️ BISINDO-Smart Real-Time Translator")
 st.markdown("### Sistem Penerjemah Bahasa Isyarat Indonesia (BISINDO)")
-st.info("Aplikasi ini menggabungkan **Pengolahan Citra Digital** (HSV, Morfologi, & Shape/Contour Extraction) dengan **Deep Learning** (CNN MobileNetV2).")
+st.info("Aplikasi ini menggabungkan **Pengolahan Citra Digital** (HSV, Morfologi,& Shape/Contour Extraction) dengan **Deep Learning** (CNN MobileNetV2).")
 
 # Real-time Tuning
 st.sidebar.title("⚙️ Kalibrasi Kulit (HSV)")
