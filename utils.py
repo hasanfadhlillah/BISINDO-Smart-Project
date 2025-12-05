@@ -101,33 +101,38 @@ def predict_gesture(roi, mask):
             hand_img = roi[y1:y2, x1:x2]
             
             if hand_img.size > 0:
-                # Resize (128x128)
-                img_input = cv2.resize(hand_img, (128, 128))
-                
-                idx = 0
-                conf = 0.0
+                # Resize ke 128x128
+                img_resized = cv2.resize(hand_img, (128, 128))
                 
                 if USING_TFLITE and interpreter is not None:
-                    # Inferensi TFLite
-                    img_input = np.expand_dims(img_input, axis=0).astype(np.float32)
-                    img_input = img_input / 255.0
+                    input_data = np.expand_dims(img_resized, axis=0).astype(np.float32)
+                    input_data = input_data / 255.0 # Normalisasi 0-1
                     
-                    interpreter.set_tensor(input_details[0]['index'], img_input)
+                    # Set Tensor
+                    interpreter.set_tensor(input_details[0]['index'], input_data)
                     interpreter.invoke()
+                    
+                    # Ambil Output
                     output_data = interpreter.get_tensor(output_details[0]['index'])
                     
-                    idx = np.argmax(output_data)
-                    conf = output_data[0][idx]
+                    idx = np.argmax(output_data[0]) # Ambil index terbesar
+                    conf = float(output_data[0][idx]) # Ambil nilai confidence
                     
                 elif not USING_TFLITE and model is not None:
-                    # Inferensi Keras
-                    img_input = np.expand_dims(img_input, axis=0)
-                    img_input = img_input / 255.0
-                    preds = model.predict(img_input, verbose=0)
+                    # Inferensi Keras (Laptop)
+                    input_data = np.expand_dims(img_resized, axis=0)
+                    input_data = input_data / 255.0
+                    
+                    preds = model.predict(input_data, verbose=0)
                     idx = np.argmax(preds)
-                    conf = preds[0][idx]
+                    conf = float(preds[0][idx])
                 
-                label = CLASSES[idx]
-                return label, conf, (x1, y1, x2, y2)
+                else:
+                    return None, 0.0, None
+
+                # Mapping ke Huruf
+                if idx < len(CLASSES):
+                    label = CLASSES[idx]
+                    return label, conf, (x1, y1, x2, y2)
     
     return None, 0.0, None
