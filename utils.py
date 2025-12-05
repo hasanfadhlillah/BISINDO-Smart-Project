@@ -3,7 +3,7 @@
 import cv2
 import numpy as np
 
-# INISIALISASI VARIABEL GLOBAL (PENTING!)
+# INISIALISASI VARIABEL GLOBAL
 USING_TFLITE = False
 interpreter = None
 model = None

@@ -31,7 +31,6 @@ with col_control:
     st.header("⚙️ Kalibrasi HSV")
     st.write("Geser slider sampai area tangan di kanan menjadi **PUTIH** dan latar belakang **HITAM**.")
     
-    # Gunakan Session State untuk menyimpan nilai slider
     if 'h_min' not in st.session_state: st.session_state['h_min'] = 0
     if 's_min' not in st.session_state: st.session_state['s_min'] = 20
     if 'v_min' not in st.session_state: st.session_state['v_min'] = 50
