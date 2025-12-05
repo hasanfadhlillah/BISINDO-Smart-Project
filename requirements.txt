@@ -1,6 +1,6 @@
 streamlit
+streamlit-webrtc
 opencv-python-headless
 numpy
 tensorflow-cpu
 Pillow
-h5py

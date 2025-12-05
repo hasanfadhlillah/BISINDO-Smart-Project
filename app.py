@@ -2,89 +2,109 @@ import streamlit as st
 import cv2
 import numpy as np
 import utils
-from PIL import Image
+import av
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase, WebRtcMode
 
 # Konfigurasi Halaman
-st.set_page_config(page_title="BISINDO-Smart", page_icon="🖐️", layout="wide")
+st.set_page_config(page_title="BISINDO-Smart Live", page_icon="🖐️", layout="wide")
 
-# Load Model
+# Load Model (Cache agar cepat)
 try:
     utils.load_trained_model()
 except Exception as e:
-    st.error(f"Gagal memuat model. Pastikan file 'bisindo_smart_model.keras' ada. Error: {e}")
+    st.error(f"❌ Error Load Model: {e}")
 
-st.markdown("""
-    <style>
-    .main {
-        background-color: #f0f2f6;
-    }
-    .stButton>button {
-        width: 100%;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-st.title("🖐️ BISINDO-Smart Translator")
-st.markdown("### Sistem Penerjemah Bahasa Isyarat Indonesia (BISINDO) Berbasis AI")
+st.title("🖐️ BISINDO-Smart Real-Time Translator")
+st.markdown("### Sistem Penerjemah Bahasa Isyarat Indonesia (BISINDO)")
 st.info("Aplikasi ini menggabungkan **Pengolahan Citra Digital** (HSV & Morfologi) dengan **Deep Learning** (CNN MobileNetV2).")
 
-col1, col2 = st.columns([1, 2])
+# Real-time Tuning
+st.sidebar.title("⚙️ Kalibrasi Kulit (HSV)")
+st.sidebar.info("Atur slider ini agar tangan di kotak kecil (mask) terlihat putih bersih.")
 
-with col1:
-    st.header("⚙️ Kalibrasi")
-    st.write("Sesuaikan slider agar tangan terlihat putih bersih di 'Mask View'.")
-    
-    h_min = st.slider("Hue Min", 0, 179, 0)
-    s_min = st.slider("Saturation Min", 0, 255, 40)
-    v_min = st.slider("Value Min", 0, 255, 60)
-    h_max = st.slider("Hue Max", 0, 179, 30)
-    s_max = st.slider("Saturation Max", 0, 255, 255)
-    v_max = st.slider("Value Max", 0, 255, 255)
+h_min = st.sidebar.slider("Hue Min", 0, 179, 0)
+s_min = st.sidebar.slider("Saturation Min", 0, 255, 40)
+v_min = st.sidebar.slider("Value Min", 0, 255, 60)
+h_max = st.sidebar.slider("Hue Max", 0, 179, 30)
+s_max = st.sidebar.slider("Saturation Max", 0, 255, 255)
+v_max = st.sidebar.slider("Value Max", 0, 255, 255)
 
-with col2:
-    st.header("📸 Kamera")
-    # Input Kamera
-    img_file_buffer = st.camera_input("Ambil Foto Gestur Tangan")
-
-    if img_file_buffer is not None:
-        # Convert ke OpenCV Format
-        bytes_data = img_file_buffer.getvalue()
-        frame = cv2.imdecode(np.frombuffer(bytes_data, np.uint8), cv2.IMREAD_COLOR)
+# Video Processor
+class VideoProcessor(VideoTransformerBase):
+    def __init__(self):
+        self.h_min = h_min
+        self.h_max = h_max
         
-        # Tentukan ROI (Area Tengah)
-        h, w, _ = frame.shape
-        start_x, start_y = (w - 400) // 2, (h - 400) // 2
-        roi = frame[start_y:start_y+400, start_x:start_x+400]
+    def transform(self, frame):
+        # Konversi dari format WebRTC ke OpenCV
+        img = frame.to_ndarray(format="bgr24")
         
-        # 1. Preprocessing (Pakai Utils)
-        mask = utils.preprocess_image(roi, h_min, s_min, v_min, h_max, s_max, v_max)
+        # Flip Horizontal (Cermin)
+        img = cv2.flip(img, 1)
+        h, w, _ = img.shape
         
-        # 2. Prediksi (Pakai Utils)
+        # Define ROI (Kotak Biru)
+        cv2.rectangle(img, (50, 50), (450, 450), (255, 0, 0), 2)
+        roi = img[50:450, 50:450]
+        
+        # PREPROCESSING (HSV + Morfologi
+        # Ambil nilai slider langsung dari variabel global streamlit
+        mask = utils.preprocess_image(
+            roi, 
+            h_min, s_min, v_min, 
+            h_max, s_max, v_max
+        )
+        
+        # PREDIKSI
         label, conf, box = utils.predict_gesture(roi, mask)
         
-        # Visualisasi Hasil
-        res_col1, res_col2, res_col3 = st.columns(3)
+        # VISUALISASI HASIL
+        # A. Tampilkan Masking Kecil (Pojok Kanan Atas biar beda dikit)
+        mask_bgr = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)
+        mask_small = cv2.resize(mask_bgr, (120, 120))
+        img[10:130, w-130:w-10] = mask_small
+        cv2.rectangle(img, (w-130, 10), (w-10, 130), (0, 255, 255), 1)
+        cv2.putText(img, "Binary Mask", (w-125, 120), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 255), 1)
         
-        with res_col1:
-            st.image(roi, channels="BGR", caption="Original ROI")
-            if label:
-                # Gambar kotak di ROI untuk visualisasi
-                x1, y1, x2, y2 = box
-                cv2.rectangle(roi, (x1, y1), (x2, y2), (0, 255, 0), 3)
-                st.image(roi, channels="BGR", caption="Deteksi Tangan")
-
-        with res_col2:
-            st.image(mask, caption="Binary Mask (Hasil Segmentasi)")
+        # B. Gambar Kotak Hijau di Tangan
+        if label:
+            x1, y1, x2, y2 = box
+            # Offset +50 karena ROI
+            cv2.rectangle(img, (50+x1, 50+y1), (50+x2, 50+y2), (0, 255, 0), 3)
             
-        with res_col3:
-            st.subheader("Hasil Prediksi:")
-            if label:
-                st.metric(label="Huruf", value=label)
-                st.metric(label="Confidence", value=f"{conf*100:.2f}%")
-                
-                if conf > 0.8:
-                    st.success("✅ Akurasi Tinggi")
-                else:
-                    st.warning("⚠️ Akurasi Rendah")
-            else:
-                st.error("❌ Tangan Tidak Terdeteksi")
+            # Tampilkan Teks Hasil
+            text = f"{label} ({conf*100:.0f}%)"
+            color = (0, 255, 0) if conf > 0.8 else (0, 0, 255)
+            
+            # Background teks biar kebaca
+            cv2.rectangle(img, (50+x1, 50+y1-30), (50+x1+200, 50+y1), (0,0,0), -1)
+            cv2.putText(img, text, (50+x1+5, 50+y1-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+        
+        return av.VideoFrame.from_ndarray(img, format="bgr24")
+
+# UI UTAMA
+col_video, col_info = st.columns([3, 1])
+
+with col_video:
+    st.markdown("#### Live Webcam Feed")
+    # Menjalankan WebRTC Streamer
+    webrtc_streamer(
+        key="bisindo-live",
+        mode=WebRtcMode.SENDRECV,
+        video_processor_factory=VideoProcessor,
+        media_stream_constraints={"video": True, "audio": False},
+        async_processing=True,
+    )
+
+with col_info:
+    st.info("💡 **Panduan:**")
+    st.markdown("""
+    1. Izinkan akses kamera.
+    2. Masukkan tangan ke dalam **Kotak Biru**.
+    3. Atur slider di kiri sampai tangan di kotak kecil ("Binary Mask") terlihat **putih bersih**.
+    4. Lakukan gerakan tangan BISINDO.
+    """)
+    st.warning("Pastikan cahaya ruangan cukup terang!")
+
+st.divider()
+st.caption("Made with ❤️ by SunShine Team")
